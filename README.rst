@@ -4,7 +4,8 @@ TeamCity modules for Ansible
 .. image:: https://travis-ci.org/msabramo/ansible-teamcity-modules.svg?branch=master
     :target: https://travis-ci.org/msabramo/ansible-teamcity-modules
 
-This implements some Ansible modules for managing TeamCity projects and build configs.
+This implements some `Ansible <http://www.ansible.com/>`_ modules for managing
+`TeamCity <https://www.jetbrains.com/teamcity/>`_ projects and build configs.
 
 Basically you can do stuff like this:
 

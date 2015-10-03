@@ -32,7 +32,8 @@ class TeamCity(object):
 
     def _get_opener(self):
         password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        password_mgr.add_password(None, self.base_url, self.username, self.password)
+        password_mgr.add_password(
+            None, self.base_url, self.username, self.password)
         handler = urllib2.HTTPBasicAuthHandler(password_mgr)
         return urllib2.build_opener(handler)
 
@@ -126,6 +127,7 @@ EXAMPLES = '''
 - teamcity_project: name="branches" parent_project_id="MarcaTestProject"
 '''
 
+
 def main():
     arg_spec = dict(
         name=dict(required=False),
@@ -157,7 +159,9 @@ def main():
         try:
             if from_json:
                 resp = teamcity.create_project_from_data(name, from_json)
-                module.exit_json(changed=True, name=name, state=state, _func='create_project_from_data')
+                module.exit_json(
+                    changed=True, name=name, state=state,
+                    _func='create_project_from_data')
             else:
                 resp = teamcity.create_project(
                     name, parent_project_id, source_project_id)
@@ -165,7 +169,8 @@ def main():
             module.fail_json(name=name, state=state, msg=str(e), url=e.url)
         if resp:
             data = json.loads(resp.read())
-            module.exit_json(changed=True, name=name, state=state, _details=data)
+            module.exit_json(
+                changed=True, name=name, state=state, _details=data)
         else:
             module.exit_json(changed=False, name=name, state=state)
     elif state == 'absent':

@@ -32,7 +32,8 @@ class TeamCity(object):
 
     def _get_opener(self):
         password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        password_mgr.add_password(None, self.base_url, self.username, self.password)
+        password_mgr.add_password(
+            None, self.base_url, self.username, self.password)
         handler = urllib2.HTTPBasicAuthHandler(password_mgr)
         return urllib2.build_opener(handler)
 
@@ -161,6 +162,7 @@ EXAMPLES = '''
 - teamcity_project: name="branches" parent_project_id="MarcaTestProject"
 '''
 
+
 def main():
     arg_spec = dict(
         project_id=dict(required=False),
@@ -184,9 +186,7 @@ def main():
     server_url = module.params.get('server_url') or os.getenv('TEAMCITY_URL')
     username = module.params.get('username') or os.getenv('TEAMCITY_USER')
     password = module.params.get('password') or os.getenv('TEAMCITY_PASSWORD')
-    parent_project_id = module.params.get('parent_project_id')
-    source_project_id = module.params.get('source_project_id')
-    from_json = module.params.get('from_json')
+    # from_json = module.params.get('from_json')
 
     teamcity = TeamCity(server_url, username, password)
 
@@ -194,7 +194,8 @@ def main():
         try:
             # Can't get this working
             # if from_json:
-            #     resp = teamcity.create_build_config_from_data(project_id, from_json)
+            #     resp = teamcity.create_build_config_from_data(
+            #         project_id, from_json)
             #     # data = json.loads(resp.read())
             #     func = 'create_build_config_from_data'
             #     module.exit_json(
@@ -203,16 +204,20 @@ def main():
             func = 'create_build_config'
             resp = teamcity.create_build_config(project_id, name)
         except urllib2.HTTPError as e:
-            module.fail_json(project_id=project_id, state=state, msg=str(e), url=e.url, _details=e.read(), _func=func)
+            module.fail_json(
+                project_id=project_id, state=state, msg=str(e), url=e.url,
+                _details=e.read(), _func=func)
         if resp:
             data = json.loads(resp.read())
 
             if template_id:
                 func = 'create_build_config'
                 build_config_id = data['id']
-                resp = teamcity.attach_build_config_to_template(build_config_id, template_id)
+                resp = teamcity.attach_build_config_to_template(
+                    build_config_id, template_id)
 
-            module.exit_json(changed=True, name=name, state=state, _details=data)
+            module.exit_json(
+                changed=True, name=name, state=state, _details=data)
         else:
             module.exit_json(changed=False, name=name, state=state)
     elif state == 'absent':

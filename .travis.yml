@@ -1,0 +1,7 @@
+sudo: false
+language: python
+env:
+  - TOXENV=py26
+  - TOXENV=py27
+script:
+  - make test

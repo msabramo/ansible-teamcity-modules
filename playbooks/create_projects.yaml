@@ -3,16 +3,19 @@
   gather_facts: no
   tasks:
     - teamcity_project:
-        name: marca_test_project  # ==> MarcaTestProject
+        name: marca_test_project
+        project_id: MarcaTestProject
+        parameters:
+          sm.repo.name: marca_test
     - teamcity_project:
         name: branches
-        parent_project_id: MarcaTestProject  # ==> MarcaTestProject_Branches
-    - teamcity_build_config:
         project_id: MarcaTestProject_Branches
-        name: "{{ item }}"
-        template_id: RunPipelineScript  # ==> MarcaTestProject_Branches_Docs, etc.
-      with_items:
-        - docs
-        - flake8
-        - package
-        - py27
+        parent_project_id: MarcaTestProject
+    - teamcity_build_config:
+        name: docs
+        build_config_id: MarcaTestProject_Branches_Docs
+        project_id: MarcaTestProject_Branches
+        template_id: RunPipelineScript
+        parameters:
+          sm.pipeline.script.name: test.sh
+          sm.pipeline.script.args: '"py27" "devmonkeys/anonweb" "%teamcity.build.branch%"'

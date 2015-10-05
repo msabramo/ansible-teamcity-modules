@@ -3,125 +3,6 @@
 
 # (c) 2015, Marc Abramowitz <marca@surveymonkey.com>
 
-import os
-import json
-import urllib2
-
-
-class MethodRequest(urllib2.Request):
-    def __init__(self, *args, **kwargs):
-        if 'method' in kwargs:
-            self._method = kwargs['method']
-            del kwargs['method']
-        else:
-            self._method = None
-        return urllib2.Request.__init__(self, *args, **kwargs)
-
-    def get_method(self, *args, **kwargs):
-        if self._method is not None:
-            return self._method
-        return urllib2.Request.get_method(self, *args, **kwargs)
-
-
-class TeamCity(object):
-    def __init__(self, base_url, username, password):
-        self.base_url = base_url
-        self.username = username
-        self.password = password
-        self.opener = self._get_opener()
-
-    def _get_opener(self):
-        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        password_mgr.add_password(
-            None, self.base_url, self.username, self.password)
-        handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-        return urllib2.build_opener(handler)
-
-    def create_project(self, name, parent_project_id=None,
-                       source_project_id=None):
-        data = {'name': name}
-        if parent_project_id:
-            data['parentProject'] = {'id': parent_project_id}
-        if source_project_id:
-            data['sourceProject'] = {'id': source_project_id}
-
-        try:
-            return self._request('POST', 'projects', data)
-        except urllib2.HTTPError as e:
-            if e.code == 400:
-                return None
-            raise
-
-    def create_build_config(self, project_id, name):
-        path = 'projects/id:%s/buildTypes' % project_id
-        headers = {
-            'Content-Type': 'text/plain',
-            'Accept': 'application/json',
-        }
-        try:
-            return self._request('POST', path, name, headers=headers)
-        except urllib2.HTTPError as e:
-            if e.code == 400:
-                return None
-            raise
-
-    def attach_build_config_to_template(self, build_config_id, template_id):
-        path = 'buildTypes/id:%s/template' % build_config_id
-        headers = {
-            'Content-Type': 'text/plain',
-            'Accept': 'application/json',
-        }
-        # try:
-        return self._request('PUT', path, template_id, headers=headers)
-        # except urllib2.HTTPError as e:
-        #     if e.code == 400:
-        #         return None
-        #     raise
-
-    def create_build_config_from_data(self, project_id, data):
-        # I can't get this to work
-        # try:
-        return self._request('POST', 'buildTypes', data)
-        # except urllib2.HTTPError as e:
-        #     if e.code == 400:
-        #         return None
-        #     raise
-
-    def create_project_from_data(self, name, data):
-        try:
-            return self._request('POST', 'projects', data)
-        except urllib2.HTTPError as e:
-            if e.code == 400:
-                return None
-            raise
-
-    def delete_project(self, id):
-        try:
-            return self._request('DELETE', 'projects/id:%s' % id)
-        except urllib2.HTTPError as e:
-            if e.code == 404:
-                return None
-            raise
-
-    def _request(self, method, path, data=None, headers=None):
-        url = self._get_url(path)
-        if headers is None:
-            headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            }
-        request = MethodRequest(url, method=method, headers=headers)
-        if data:
-            resp = self.opener.open(request, data=data)
-        else:
-            resp = self.opener.open(request)
-        return resp
-
-    def _get_url(self, path):
-        middle = 'httpAuth/app/rest'
-        return '%s/%s/%s' % (self.base_url, middle, path)
-
-
 DOCUMENTATION = '''
 ---
 module: teamcity_build_config
@@ -158,13 +39,68 @@ options:
 '''
 
 EXAMPLES = '''
-- teamcity_project: name="marca_test_project"
-- teamcity_project: name="branches" parent_project_id="MarcaTestProject"
+- teamcity_build_config:
+    name: docs
+    build_config_id: MarcaTestProject_Branches_Docs
+    project_id: MarcaTestProject_Branches
+    template_id: RunPipelineScript
+    parameters:
+      sm.pipeline.script.name: test.sh
+      sm.pipeline.script.args: '"py27" "devmonkeys/anonweb" "%teamcity.build.branch%"'
 '''
+
+import os
+import json
+import urllib2
+
+
+class TeamCity(object):
+    def __init__(self, base_url, username, password):
+        self.base_url = base_url
+        self.username = username
+        self.password = password
+
+    def _request(self, method, path, data=None, headers=None):
+        url = '%s/httpAuth/app/rest/%s' % (self.base_url, path)
+        if headers is None:
+            headers = {'Content-Type': 'application/json',
+                       'Accept': 'application/json'}
+        return open_url(
+            url, data=data, headers=headers, method=method,
+            url_username=self.username, url_password=self.password)
+
+    def create_build_config(self, project_id, name):
+        path = 'projects/id:%s/buildTypes' % project_id
+        headers = {'Content-Type': 'text/plain',
+                   'Accept': 'application/json'}
+        return self._request('POST', path, name, headers=headers)
+
+    def get_build_config_by_id(self, id):
+        return self._request('GET', 'buildTypes/id:%s' % id)
+
+    def set_build_config_parameters(self, build_config_id, parameters):
+        changed = False
+
+        for name, value in parameters.items():
+            path = 'buildTypes/id:%s/parameters/%s' % (build_config_id, name)
+            get_response = self._request('GET', path)
+            previous_value = json.loads(get_response.read())['value']
+            if value != previous_value:
+                self._request('PUT', path, json.dumps({'value': value}))
+                changed = True
+
+        return changed
+
+    def attach_build_config_to_template(self, build_config_id, template_id):
+        path = 'buildTypes/id:%s/template' % build_config_id
+        headers = {'Content-Type': 'text/plain',
+                   'Accept': 'application/json'}
+        return self._request('PUT', path, template_id, headers=headers)
 
 
 def main():
     arg_spec = dict(
+        build_config_id=dict(required=False),
         project_id=dict(required=False),
         template_id=dict(required=False),
         name=dict(required=False),
@@ -172,13 +108,12 @@ def main():
         server_url=dict(required=False),
         username=dict(required=False),
         password=dict(required=False),
-        parent_project_id=dict(required=False),
-        source_project_id=dict(required=False),
-        from_json=dict(required=False),
+        parameters=dict(required=False),
     )
 
     module = AnsibleModule(argument_spec=arg_spec)
 
+    build_config_id = module.params['build_config_id']
     project_id = module.params['project_id']
     template_id = module.params['template_id']
     name = module.params.get('name')
@@ -186,49 +121,56 @@ def main():
     server_url = module.params.get('server_url') or os.getenv('TEAMCITY_URL')
     username = module.params.get('username') or os.getenv('TEAMCITY_USER')
     password = module.params.get('password') or os.getenv('TEAMCITY_PASSWORD')
-    # from_json = module.params.get('from_json')
+    parameters = module.params.get('parameters')
+
+    result = dict(
+        name=name,
+        build_config_id=build_config_id,
+        state=state,
+        changed=False,
+    )
+    if parameters:
+        result['parameters'] = parameters
+    if project_id:
+        result['project_id'] = project_id
+    if template_id:
+        result['template_id'] = template_id
 
     teamcity = TeamCity(server_url, username, password)
 
     if state == 'present':
-        try:
-            # Can't get this working
-            # if from_json:
-            #     resp = teamcity.create_build_config_from_data(
-            #         project_id, from_json)
-            #     # data = json.loads(resp.read())
-            #     func = 'create_build_config_from_data'
-            #     module.exit_json(
-            #         changed=True, project_id=project_id,  # _details=data,
-            #         state=state, _func=func)
-            func = 'create_build_config'
-            resp = teamcity.create_build_config(project_id, name)
-        except urllib2.HTTPError as e:
-            module.fail_json(
-                project_id=project_id, state=state, msg=str(e), url=e.url,
-                _details=e.read(), _func=func)
+        resp = teamcity.get_build_config_by_id(build_config_id)
         if resp:
-            data = json.loads(resp.read())
-
-            if template_id:
-                func = 'create_build_config'
-                build_config_id = data['id']
-                resp = teamcity.attach_build_config_to_template(
-                    build_config_id, template_id)
-
-            module.exit_json(
-                changed=True, name=name, state=state, _details=data)
+            build_config = json.loads(resp.read())
         else:
-            module.exit_json(changed=False, name=name, state=state)
+            try:
+                resp = teamcity.create_build_config(project_id, name)
+            except urllib2.HTTPError as e:
+                module.fail_json(
+                    project_id=project_id, state=state, msg=str(e), url=e.url,
+                    _details=e.read())
+
+        if template_id:
+            teamcity.attach_build_config_to_template(
+                build_config['id'], template_id)
+
+        if parameters:
+            changed = teamcity.set_build_config_parameters(
+                build_config['id'], parameters)
+            if changed:
+                result['changed'] = True
     elif state == 'absent':
-        resp = teamcity.delete_project(id=id)
-        changed = (resp is not None)
-        module.exit_json(changed=changed, id=id, state=state)
+        resp = teamcity.delete_build_config(build_config_id=build_config_id)
+        result['changed'] = (resp is not None)
     else:
-        data['error'] = 'Illegal state: %s' % state
+        result['msg'] = 'Illegal state: %s' % state
+        module.fail_json(**result)
+
+    module.exit_json(**result)
 
 
 from ansible.module_utils.basic import *
+from ansible.module_utils.urls import *
 
 if __name__ == '__main__':
     main()
